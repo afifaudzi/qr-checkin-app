@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Scan – Kaunter Check‑In</title>
+</head>
+<body>
+  <header>
+    <h1>Kaunter Imbas Kod QR</h1>
+  </header>
+  <div class="container">
+    <p>Halakan kamera ke kod QR tetamu. Maklumat tetamu akan dipaparkan di sini.</p>
+    <video id="video" style="width:100%; max-width:600px; background:#000;"></video>
+    <div id="result" class="status"></div>
+    <div id="details" style="margin-top:1rem;"></div>
+  </div>
+  <!-- QR scanner library -->
+  <script type="module" src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js';
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      updateDoc,
+      increment
+    } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js';
+
+    // TODO: Replace with your own Firebase project configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const video = document.getElementById('video');
+    const resultEl = document.getElementById('result');
+    const detailsEl = document.getElementById('details');
+
+    // Initialize QR scanner
+    const qrScanner = new QrScanner(
+      video,
+      async result => {
+        await handleCode(result.data || result);
+      },
+      {
+        highlightScanRegion: true,
+        returnDetailedScanResult: true
+      }
+    );
+    qrScanner.start().catch(err => {
+      resultEl.textContent = 'Tidak dapat mengakses kamera: ' + err;
+      resultEl.classList.add('error');
+    });
+
+    async function handleCode(token) {
+      // Stop scanning temporarily to avoid duplicate reads
+      qrScanner.pause();
+      resultEl.textContent = 'Mengambil data…';
+      try {
+        const ref = doc(db, 'guests', token);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          resultEl.textContent = '❌ Kod tidak sah.';
+          resultEl.classList.add('error');
+          detailsEl.innerHTML = '';
+        } else {
+          const data = snap.data();
+          let statusMessage = '';
+          let valid = true;
+          // Handle individual vs company quotas
+          if (data.type === 'company') {
+            const remaining = (data.quota || 0) - (data.checkedIn || 0);
+            if (remaining <= 0) {
+              valid = false;
+              statusMessage = '❌ Kuota telah habis.';
+            } else {
+              statusMessage = `✔️ ${remaining - 1} baki daripada ${data.quota} pax.`;
+              await updateDoc(ref, { checkedIn: increment(1) });
+            }
+          } else {
+            if (data.checkedIn >= 1) {
+              valid = false;
+              statusMessage = '❌ Kod ini telah digunakan.';
+            } else {
+              statusMessage = '✔️ Selamat datang!';
+              await updateDoc(ref, { checkedIn: 1 });
+            }
+          }
+          // Build display
+          const namePart = data.name ? `<p><strong>Nama:</strong> ${data.name}</p>` : '';
+          const companyPart = data.company ? `<p><strong>Syarikat:</strong> ${data.company}</p>` : '';
+          const categoryPart = `<p><strong>Kategori:</strong> ${data.category}</p>`;
+          const tablePart = data.table ? `<p><strong>Meja:</strong> ${data.table}</p>` : '';
+          detailsEl.innerHTML = `${namePart}${companyPart}${categoryPart}${tablePart}`;
+          resultEl.textContent = statusMessage;
+          resultEl.className = valid ? 'status' : 'status error';
+        }
+      } catch (err) {
+        resultEl.textContent = 'Ralat semasa mengakses database.';
+        resultEl.classList.add('error');
+        console.error(err);
+      } finally {
+        // Resume scanning after short delay to prevent repeated reads
+        setTimeout(() => qrScanner.resume(), 2000);
+      }
+    }
+  </script>
+  <script>
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>

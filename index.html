@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <title>QR Event Check‑In</title>
+</head>
+<body>
+  <header>
+    <h1>QR Event Check‑In</h1>
+  </header>
+  <div class="container">
+    <p>Selamat datang! Pilih peranan anda:</p>
+    <ul>
+      <li><a href="admin.html">Admin – Jana kod QR dan pantau kehadiran</a></li>
+      <li><a href="scan.html">Kaunter – Imbas kod QR tetamu</a></li>
+      <li><a href="list.html">Tier 1 – Senarai tetamu/syarikat</a></li>
+    </ul>
+    <p>Pastikan anda menambah laman ini ke skrin utama untuk kegunaan offline.</p>
+  </div>
+  <script>
+    // Register service worker if supported
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>

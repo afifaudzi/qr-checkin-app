@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Senarai Kehadiran</title>
+</head>
+<body>
+  <header>
+    <h1>Senarai Tetamu / Syarikat</h1>
+  </header>
+  <div class="container">
+    <p>Laman ini memaparkan senarai tetamu (individu) dan syarikat beserta status kehadiran secara masa sebenar.</p>
+    <table id="guestTable" border="1" cellspacing="0" cellpadding="4" style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Nama / Syarikat</th>
+          <th>Jenis</th>
+          <th>Kategori</th>
+          <th>Meja</th>
+          <th>Kehadiran</th>
+        </tr>
+      </thead>
+      <tbody id="guestBody"></tbody>
+    </table>
+  </div>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js';
+    import {
+      getFirestore,
+      collection,
+      getDocs
+    } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js';
+
+    // TODO: Replace with your own Firebase project configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function loadGuests() {
+      const body = document.getElementById('guestBody');
+      body.innerHTML = '<tr><td colspan="6">Memuat data…</td></tr>';
+      try {
+        const querySnapshot = await getDocs(collection(db, 'guests'));
+        let rows = '';
+        querySnapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          const name = d.type === 'company' ? d.company : d.name || '-';
+          const typeLabel = d.type === 'company' ? 'Syarikat' : 'Individu';
+          const category = d.category || '-';
+          const table = d.table || '-';
+          let attendance;
+          if (d.type === 'company') {
+            attendance = `${d.checkedIn || 0}/${d.quota || 0}`;
+          } else {
+            attendance = (d.checkedIn && d.checkedIn >= 1) ? '✔️' : '❌';
+          }
+          rows += `<tr><td>${d.token}</td><td>${name}</td><td>${typeLabel}</td><td>${category}</td><td>${table}</td><td>${attendance}</td></tr>`;
+        });
+        body.innerHTML = rows || '<tr><td colspan="6">Tiada tetamu dijumpai.</td></tr>';
+      } catch (err) {
+        body.innerHTML = '<tr><td colspan="6">Ralat semasa memuat data.</td></tr>';
+        console.error(err);
+      }
+    }
+    loadGuests();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>

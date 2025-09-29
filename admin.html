@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Admin – QR Generator</title>
+</head>
+<body>
+  <header>
+    <h1>Admin – Jana Kod QR</h1>
+  </header>
+  <div class="container">
+    <form id="generateForm">
+      <label for="guestType">Jenis tetamu</label>
+      <select id="guestType" name="guestType" required>
+        <option value="individual">Individu</option>
+        <option value="company">Syarikat (lump sum)</option>
+      </select>
+
+      <div id="individualFields">
+        <label for="guestName">Nama penuh</label>
+        <input type="text" id="guestName" name="guestName" placeholder="Nama tetamu" />
+        <label for="guestCompany">Syarikat (jika ada)</label>
+        <input type="text" id="guestCompany" name="guestCompany" placeholder="Nama syarikat" />
+      </div>
+
+      <div id="companyFields" style="display:none;">
+        <label for="companyName">Nama syarikat</label>
+        <input type="text" id="companyName" name="companyName" placeholder="Nama syarikat" />
+        <label for="quota">Kuota pax</label>
+        <input type="number" id="quota" name="quota" min="1" value="10" />
+      </div>
+
+      <label for="category">Kategori</label>
+      <select id="category" name="category" required>
+        <option value="normal">Normal</option>
+        <option value="VIP">VIP</option>
+      </select>
+
+      <label for="table">Nombor meja (jika ada)</label>
+      <input type="text" id="table" name="table" placeholder="Contoh: B12" />
+
+      <button type="submit">Jana QR</button>
+    </form>
+
+    <div id="qrSection" style="display:none;">
+      <h2>Kod QR Dihasilkan</h2>
+      <div id="qrOutput" class="qr-code"></div>
+      <p><strong>Token:</strong> <span id="tokenDisplay"></span></p>
+      <p>Muat turun imej QR atau hantarkan melalui email/WhatsApp.</p>
+    </div>
+  </div>
+  <!-- QR code generator library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-app.js';
+    import {
+      getFirestore,
+      doc,
+      setDoc
+    } from 'https://www.gstatic.com/firebasejs/9.12.1/firebase-firestore.js';
+
+    // TODO: Replace with your own Firebase project configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Show/hide fields based on guest type
+    const guestTypeSelect = document.getElementById('guestType');
+    const individualFields = document.getElementById('individualFields');
+    const companyFields = document.getElementById('companyFields');
+    guestTypeSelect.addEventListener('change', () => {
+      const type = guestTypeSelect.value;
+      if (type === 'individual') {
+        individualFields.style.display = '';
+        companyFields.style.display = 'none';
+      } else {
+        individualFields.style.display = 'none';
+        companyFields.style.display = '';
+      }
+    });
+
+    // Generate a unique token
+    function generateToken() {
+      // Combine timestamp and random string for uniqueness
+      return (
+        Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 5)
+      ).toUpperCase();
+    }
+
+    // Form submission handler
+    document
+      .getElementById('generateForm')
+      .addEventListener('submit', async event => {
+        event.preventDefault();
+        const type = guestTypeSelect.value;
+        const category = document.getElementById('category').value;
+        const table = document.getElementById('table').value;
+        let data = {
+          type,
+          category,
+          table: table || null,
+          createdAt: Date.now(),
+          checkedIn: 0
+        };
+        if (type === 'individual') {
+          const name = document.getElementById('guestName').value;
+          const company = document.getElementById('guestCompany').value;
+          data.name = name.trim();
+          data.company = company.trim();
+        } else {
+          const companyName = document.getElementById('companyName').value;
+          const quota = parseInt(document.getElementById('quota').value || '1', 10);
+          data.company = companyName.trim();
+          data.quota = quota;
+        }
+        const token = generateToken();
+        data.token = token;
+        try {
+          await setDoc(doc(db, 'guests', token), data);
+          // Generate QR code
+          const qrContainer = document.getElementById('qrOutput');
+          qrContainer.innerHTML = '';
+          new QRCode(qrContainer, {
+            text: token,
+            width: 256,
+            height: 256
+          });
+          document.getElementById('tokenDisplay').textContent = token;
+          document.getElementById('qrSection').style.display = '';
+        } catch (err) {
+          alert('Ralat semasa menyimpan data ke Firebase. Sila semak konfigurasi.');
+          console.error(err);
+        }
+      });
+  </script>
+  <script>
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>
